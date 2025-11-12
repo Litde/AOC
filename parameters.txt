@@ -1,0 +1,7 @@
+| Parametr               | Znaczenie                     | Typowe wartości             |
+| ---------------------- | ----------------------------- | --------------------------- |
+| `min_area`             | ignoruje drobne plamy         | 500–1000                    |
+| `circularity`          | dopasowanie do koła           | 0.65–1.3                    |
+| `solidity`             | gładkość kształtu             | ≥ 0.85                      |
+| `color_fraction`       | ile koloru w masce            | ≥ 0.25                      |
+| `has_inner_contrast()` | wycina gładkie kolorowe plamy | > 100 (wariancja Laplace’a) |
