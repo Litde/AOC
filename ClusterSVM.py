@@ -22,8 +22,8 @@ class ClusterSVM:
 
     def load_data(self):
         self.multi_ds.load()
-        self.X = np.concatenate([self.multi_ds.circle.X, self.multi_ds.triangle.X, self.multi_ds.rectangle.X])
-        y_combined = np.concatenate([self.multi_ds.circle.y, self.multi_ds.triangle.y, self.multi_ds.rectangle.y])
+        self.X = np.concatenate([self.multi_ds.circle.X, self.multi_ds.triangle.X, self.multi_ds.rectangle.X, self.multi_ds.square.X])
+        y_combined = np.concatenate([self.multi_ds.circle.y, self.multi_ds.triangle.y, self.multi_ds.rectangle.y, self.multi_ds.square.y])
         self.y = np.where(y_combined == self.target_class, 1, 0)
 
     def train_model(self, param_grid:dict):

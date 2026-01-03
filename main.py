@@ -3,7 +3,7 @@ from ClusterSVM import ClusterSVM
 
 
 def train_svm():
-    model = ClusterSVM(target_class='rectangle', img_size=(64, 64))
+    model = ClusterSVM(target_class='square', img_size=(64, 64))
     model.load_data()
 
     print(model.X.shape, model.y.shape)
@@ -17,10 +17,10 @@ def train_svm():
     }
 
     model.train_model(param_grid)
-    model.save_model('models/binary_rectangle_model.joblib')
+    model.save_model('models/binary_square_model.joblib')
 
 def train_rf():
-    model = ClassificationRandomForest(data_dir='input/rectangle', img_size=(64, 64), n_estimators=100, max_depth=None, random_state=42)
+    model = ClassificationRandomForest(data_dir='input/square', img_size=(64, 64), n_estimators=100, max_depth=None, random_state=42)
     model.load_data()
     print("Training Random Forest model...")
     metrics = model.train_model()
@@ -28,20 +28,21 @@ def train_rf():
     model.save_model('models/rf_rectangle_model.joblib')
 
 def test_svm():
-    model = ClusterSVM(target_class='triangle', img_size=(64, 64))
-    model.load_model('models/binary_triangle_model.joblib')
+    model = ClusterSVM(target_class='rectangle', img_size=(64, 64))
+    model.load_model('models/binary_rectangle_model.joblib')
 
-    y_pred = model.predict('input/rectangle/I-38/001_201311251210402_5901_celje.png')
+    y_pred = model.predict('image.png')
     print("Predicted label:", y_pred)
 
 def test_rf():
     model = ClassificationRandomForest(data_dir='input/circle', img_size=(64, 64))
     model.load_model('models/rf_circle_model.joblib')
 
-    y_pred = model.predict('input/circle/II-3/001_201311071110100_13511_celje.png')
+    y_pred = model.predict('image.png')
     print("Predicted label:", y_pred)
 
 if __name__ == "__main__":
     # train_svm()
+    # test_svm()
     train_rf()
     # test_rf()
