@@ -175,7 +175,7 @@ def save_crops(img, detections, image_path, output_dir="cropped"):
         paths.append(p)
     return paths
 
-def run_detector(image_path):
+def run_detector(image_path, printImages=True):
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Could not load image: {image_path}")
@@ -186,32 +186,33 @@ def run_detector(image_path):
     detections = detect_shapes(prep, mask)
     list_of_crop_paths = save_crops(img, detections, image_path)
 
-    all_detections = draw_all_detections(img, detections)
+    if printImages:
+        all_detections = draw_all_detections(img, detections)
 
-    # plt.figure(figsize=(24, 12))
-    # plt.subplot(131)
-    # plt.title("Saliency Map")
-    # plt.imshow(sal_map, cmap="gray")
-    # plt.axis("off")
-    #
-    # plt.subplot(132)
-    # plt.title("Saliency Mask")
-    # plt.imshow(mask, cmap="gray")
-    # plt.axis("off")
-    #
-    # plt.subplot(133)
-    # plt.title("Detected Shapes")
-    # plt.imshow(cv2.cvtColor(all_detections, cv2.COLOR_BGR2RGB))
-    # plt.axis("off")
-    #
-    # plt.show()
+        # plt.figure(figsize=(24, 12))
+        # plt.subplot(131)
+        # plt.title("Saliency Map")
+        # plt.imshow(sal_map, cmap="gray")
+        # plt.axis("off")
+        #
+        # plt.subplot(132)
+        # plt.title("Saliency Mask")
+        # plt.imshow(mask, cmap="gray")
+        # plt.axis("off")
+        #
+        # plt.subplot(133)
+        # plt.title("Detected Shapes")
+        # plt.imshow(cv2.cvtColor(all_detections, cv2.COLOR_BGR2RGB))
+        # plt.axis("off")
+        #
+        # plt.show()
 
-    #-------------------------------Printing----------------------------
-    plt.figure(figsize=(10, 8))
-    plt.imshow(cv2.cvtColor(all_detections, cv2.COLOR_BGR2RGB))
-    plt.title("Contours detection (Hough-based)")
-    plt.axis("off")
-    plt.show()
-    #-------------------------------------------------------------------
+        #-------------------------------Printing----------------------------
+        plt.figure(figsize=(10, 8))
+        plt.imshow(cv2.cvtColor(all_detections, cv2.COLOR_BGR2RGB))
+        plt.title("Contours detection (Segmentation-based)")
+        plt.axis("off")
+        plt.show()
+        #-------------------------------------------------------------------
 
     return list_of_crop_paths

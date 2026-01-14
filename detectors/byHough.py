@@ -288,7 +288,7 @@ def draw_all_detections(img, detections):
     return output
 
 
-def run_detector(image_path):
+def run_detector(image_path, printImages=True):
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Could not load image: {image_path}")
@@ -305,14 +305,14 @@ def run_detector(image_path):
 
     list_of_crop_paths = save_crops(img, all_detections, image_path)
 
-    #-------------------------------Printing----------------------------
-    combined_img = draw_all_detections(img, all_detections)
-    plt.figure(figsize=(10, 8))
-    plt.imshow(cv2.cvtColor(combined_img, cv2.COLOR_BGR2RGB))
-    plt.title("Contours detection (Hough-based)")
-    plt.axis("off")
-    plt.show()
-    #-------------------------------------------------------------------
-
+    if printImages:
+        #-------------------------------Printing----------------------------
+        combined_img = draw_all_detections(img, all_detections)
+        plt.figure(figsize=(10, 8))
+        plt.imshow(cv2.cvtColor(combined_img, cv2.COLOR_BGR2RGB))
+        plt.title("Contours detection (Hough-based)")
+        plt.axis("off")
+        plt.show()
+        #-------------------------------------------------------------------
 
     return list_of_crop_paths

@@ -175,7 +175,7 @@ def draw_all_detections(img, detections):
 
     return output
 
-def run_detector(image_path):
+def run_detector(image_path, printImages=True):
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Could not load image: {image_path}")
@@ -190,15 +190,15 @@ def run_detector(image_path):
 
     list_of_crop_paths = save_crops(img, all_detections, image_path)
 
-    #-------------------------------Printing----------------------------
-    all_detections = tri_det + sq_det + circ_det
-    combined_img = draw_all_detections(img, all_detections)
+    if printImages:
+        #-------------------------------Printing----------------------------
+        combined_img = draw_all_detections(img, all_detections)
 
-    plt.figure(figsize=(10, 8))
-    plt.imshow(cv2.cvtColor(combined_img, cv2.COLOR_BGR2RGB))
-    plt.title(f"Contours detectetion by number of approxPolyDP")
-    plt.axis("off")
-    plt.show()
-    #-------------------------------------------------------------------
+        plt.figure(figsize=(10, 8))
+        plt.imshow(cv2.cvtColor(combined_img, cv2.COLOR_BGR2RGB))
+        plt.title(f"Contours detectetion by number of approxPolyDP")
+        plt.axis("off")
+        plt.show()
+        #-------------------------------------------------------------------
 
     return list_of_crop_paths

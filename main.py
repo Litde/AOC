@@ -1,9 +1,16 @@
+import os
 from ClassificationModel import ClassificationRandomForest
 from ClusterSVM import ClusterSVM
 
 import detectors.byHough as hough
 import detectors.byApproxPolyDP as approxPolyDP
 import detectors.bySegmentation as segmentation
+import json
+import random
+from collections import defaultdict
+
+import matplotlib.pyplot as plt
+
 
 def train_svm():
     model = ClusterSVM(target_class='rectangle', img_size=(64, 64))
@@ -45,25 +52,53 @@ def test_rf(image_path, shape):
     return model.predict(image_path)
 
 
-def main():
-    image_path = "JPEGImages/0000289.jpg"
-    all_crops = []
+def get_true_label(image_filename: str):
+    with open("labels/train.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-    modules  = [
+    image_id = None
+    for img in data["images"]:
+        if img["file_name"] == image_filename:
+            image_id = img["id"]
+            break
+
+    if image_id is None:
+        raise ValueError(f"Nie znaleziono obrazu: {image_filename}")
+
+    category_id_to_name = {
+        cat["id"]: cat["name"]
+        for cat in data["categories"]
+    }
+
+    category_names = set()
+    for ann in data["annotations"]:
+        if ann["image_id"] == image_id:
+            cat_id = ann["category_id"]
+            if cat_id in category_id_to_name:
+                category_names.add(category_id_to_name[cat_id])
+    return sorted(category_names)
+
+
+def run_for_one():
+    image_path = "JPEGImages/0000036.jpg"
+    all_crops = []
+    to_print = []
+
+    modules = [
         ("hough", hough),
         ("approx", approxPolyDP),
         ("segmentation", segmentation)
     ]
 
     for name, mod in modules:
-        print(f"Running {name}...")
+        to_print.append(f"Running {name}...")
         try:
             crops = mod.run_detector(image_path)
             all_crops.extend(crops)
         except Exception as e:
-            print(f"Error in {name}:", e)
+            to_print.append(f"Error in {name}: {e}")
 
-    print("\nDETECTED SIGNS: ")
+    to_print.append("\nDETECTED SIGNS: ")
     printed_labels = set()
 
     for filename in all_crops:
@@ -80,16 +115,143 @@ def main():
         if shape == "unknown":
             continue
 
-        label = test_rf(filename, shape)
+        label = test_svm(filename, shape)
 
-        if label.lower() == "X-1.2" or label in printed_labels:
+        if label.lower() in ("x-1.2", "x-1.1") or label in printed_labels:
             continue
 
-        print(label)
+        to_print.append(f"{label} - {os.path.basename(filename)}")
         printed_labels.add(label)
 
+    return to_print
 
 
+def run_for_many(n: int, random_pick: bool = False):
+    image_dir = "JPEGImages"
+    images = sorted([
+        f for f in os.listdir(image_dir)
+        if f.lower().endswith((".jpg", ".png", ".jpeg"))
+    ])
+
+    if random_pick:
+        images = random.sample(images, min(n, len(images)))
+    else:
+        images = images[:n]
+
+    modules = [
+        ("hough", hough),
+        ("approx", approxPolyDP),
+        ("segmentation", segmentation)
+    ]
+
+    ignored_labels = {"x-1.1", "x-1.2"}
+
+    confusion_matrix = defaultdict(lambda: defaultdict(int))
+
+    texts = []
+
+    for image_name in images:
+        image_path = os.path.join(image_dir, image_name)
+
+        try:
+            true_labels = {
+                lbl.lower() for lbl in get_true_label(image_name)
+                if lbl.lower() not in ignored_labels
+            }
+        except Exception as e:
+            texts.append(f"Brak etykiet dla {image_name}: {e}")
+            continue
+
+        all_crops = []
+
+        for name, mod in modules:
+            try:
+                crops = mod.run_detector(image_path, printImages=False)
+                all_crops.extend(crops)
+            except Exception as e:
+                texts.append(f"{image_name} - błąd w {name}: {e}")
+
+        predicted_labels = set()
+
+        for filename in all_crops:
+            if "circle" in filename or "octagon" in filename:
+                shape = "circle"
+            elif "triangle" in filename:
+                shape = "triangle"
+            elif "square" in filename or "rectangle" in filename:
+                shape = "rectangle"
+            else:
+                continue
+
+            pred = test_svm(filename, shape)
+
+            if pred is None:
+                continue
+
+            pred = pred.lower()
+            if pred in ignored_labels:
+                continue
+
+            predicted_labels.add(pred)
+
+        # Prawidłowo zidentyfikowane znaki (True Positives)
+        true_positives = true_labels.intersection(predicted_labels)
+        for lbl in true_positives:
+            confusion_matrix[lbl][lbl] += 1
+
+        # Pominięte znaki (False Negatives)
+        false_negatives = true_labels.difference(predicted_labels)
+        for lbl in false_negatives:
+            confusion_matrix[lbl]['<brak_predykcji>'] += 1
+
+        # Błędnie zidentyfikowane znaki (False Positives)
+        false_positives = predicted_labels.difference(true_labels)
+        for lbl in false_positives:
+            confusion_matrix['<fałszywy_pozytyw>'][lbl] += 1
+
+        texts.append(
+            f"{image_name}: true={sorted(true_labels)}, pred={sorted(predicted_labels)}"
+        )
+
+    return texts, confusion_matrix
+    
+def calculate_and_plot_summary_metrics(cm: defaultdict):
+    tp = 0
+    fp = 0
+    fn = 0
+
+    true_labels = sorted([k for k in cm.keys() if k != "<fałszywy_pozytyw>"])
+
+    # Obliczanie TP i FN na podstawie prawdziwych etykiet
+    for true_lbl in true_labels:
+        preds = cm.get(true_lbl, {})
+        # Poprawnie wykryty i sklasyfikowany znak (True Positive)
+        tp += preds.get(true_lbl, 0)
+        # Niewykryty znak (False Negative)
+        fn += preds.get('<brak_predykcji>', 0)
+
+    # Obliczanie FP na podstawie detekcji, które nie miały odpowiednika w prawdziwych etykietach
+    fp += sum(cm.get("<fałszywy_pozytyw>", {}).values())
+
+    print("\n--- Sumaryczna Macierz Pomyłek ---")
+    print(f"  - True Positives (TP): {tp} (Poprawnie wykryte znaki)")
+    print(f"  - False Positives (FP): {fp} (Błędne detekcje - nadmiarowe lub źle sklasyfikowane)")
+    print(f"  - False Negatives (FN): {fn} (Niewykryte znaki)")
+    print("  - True Negatives (TN): Nie dotyczy w zadaniach detekcji obiektów.")
+
+    metrics = {'TP (Poprawne)': tp, 'FP (Błędne)': fp, 'FN (Niewykryte)': fn}
+    names = list(metrics.keys())
+    values = list(metrics.values())
+
+    plt.figure(figsize=(8, 6))
+    bars = plt.bar(names, values, color=['green', 'red', 'orange'])
+    plt.ylabel('Liczba detekcji')
+    plt.title('Podsumowanie wyników detekcji (TP, FP, FN)')
+    
+    for bar in bars:
+        yval = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2.0, yval, int(yval), va='bottom')
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -99,4 +261,24 @@ if __name__ == "__main__":
     # test_svm()
     # test_rf()
 
-    main()
+    detected_signs = run_for_one()
+    for sign in detected_signs:
+        print(sign)
+
+    # texts, cm = run_for_many(2, random_pick=False)
+
+    # for t in texts:
+    #     print(t)
+
+    # print("\nMACIERZ POMYŁEK:")
+    # for true_lbl, preds in cm.items():
+    #     for pred_lbl, count in preds.items():
+    #         print(f"{true_lbl} -> {pred_lbl}: {count}")
+
+    # calculate_and_plot_summary_metrics(cm)
+
+    # image_name = "0000036.jpg"
+    # categories = get_true_label( image_name)
+    # print(f"Kategorie na obrazie {image_name}:")
+    # for c in categories:
+    #     print("-", c)
