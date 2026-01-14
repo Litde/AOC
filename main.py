@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 
 def train_svm():
-    model = ClusterSVM(target_class='rectangle', img_size=(64, 64))
+    model = ClusterSVM(target_class='square', img_size=(64, 64))
     model.load_data()
 
     print(model.X.shape, model.y.shape)
@@ -27,126 +27,22 @@ def train_svm():
     }
 
     model.train_model(param_grid)
-    model.save_model('models/binary_rectangle_model.joblib')
+    model.save_model('models/binary_square_model.joblib')
 
 def train_rf():
-    model = ClassificationRandomForest(data_dir='input/rectangle', img_size=(64, 64), n_estimators=100, max_depth=None, random_state=42)
+    model = ClassificationRandomForest(data_dir='input/square', img_size=(64, 64), n_estimators=100, max_depth=None, random_state=42)
     model.load_data()
     print("Training Random Forest model...")
     metrics = model.train_model()
     print("Training metrics:", metrics)
     model.save_model('models/rf_rectangle_model.joblib')
 
-def test_svm(image_path, shape):
-    model_path = f"models/binary_{shape}_model.joblib"
-    model = ClusterSVM(target_class='triangle', img_size=(64, 64))
-    model.load_model(model_path)
+def test_svm():
+    model = ClusterSVM(target_class='rectangle', img_size=(64, 64))
+    model.load_model('models/binary_rectangle_model.joblib')
 
-    return model.predict(image_path)
-
-def test_rf(image_path, shape):
-    model_path = f"models/rf_{shape}_model.joblib"
-    model = ClassificationRandomForest(data_dir='cropped/', img_size=(64, 64))
-    model.load_model(model_path)
-
-    return model.predict(image_path)
-
-
-def get_true_label(image_filename: str):
-    with open("labels/train.json", "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    image_id = None
-    for img in data["images"]:
-        if img["file_name"] == image_filename:
-            image_id = img["id"]
-            break
-
-    if image_id is None:
-        raise ValueError(f"Nie znaleziono obrazu: {image_filename}")
-
-    category_id_to_name = {
-        cat["id"]: cat["name"]
-        for cat in data["categories"]
-    }
-
-    category_names = set()
-    for ann in data["annotations"]:
-        if ann["image_id"] == image_id:
-            cat_id = ann["category_id"]
-            if cat_id in category_id_to_name:
-                category_names.add(category_id_to_name[cat_id])
-    return sorted(category_names)
-
-
-def run_for_one():
-    image_path = "JPEGImages/0000036.jpg"
-    all_crops = []
-    to_print = []
-
-    modules = [
-        ("hough", hough),
-        ("approx", approxPolyDP),
-        ("segmentation", segmentation)
-    ]
-
-    for name, mod in modules:
-        to_print.append(f"Running {name}...")
-        try:
-            crops = mod.run_detector(image_path)
-            all_crops.extend(crops)
-        except Exception as e:
-            to_print.append(f"Error in {name}: {e}")
-
-    to_print.append("\nDETECTED SIGNS: ")
-    printed_labels = set()
-
-    for filename in all_crops:
-
-        if "circle" in filename or "octagon" in filename:
-            shape = "circle"
-        elif "triangle" in filename:
-            shape = "triangle"
-        elif "square" in filename or "rectangle" in filename:
-            shape = "rectangle"
-        else:
-            shape = "unknown"
-
-        if shape == "unknown":
-            continue
-
-        label = test_svm(filename, shape)
-
-        if label.lower() in ("x-1.2", "x-1.1") or label in printed_labels:
-            continue
-
-        to_print.append(f"{label} - {os.path.basename(filename)}")
-        printed_labels.add(label)
-
-    return to_print
-
-
-def run_for_many(n: int, random_pick: bool = False):
-    image_dir = "JPEGImages"
-    images = sorted([
-        f for f in os.listdir(image_dir)
-        if f.lower().endswith((".jpg", ".png", ".jpeg"))
-    ])
-
-    if random_pick:
-        images = random.sample(images, min(n, len(images)))
-    else:
-        images = images[:n]
-
-    modules = [
-        ("hough", hough),
-        ("approx", approxPolyDP),
-        ("segmentation", segmentation)
-    ]
-
-    ignored_labels = {"x-1.1", "x-1.2"}
-
-    confusion_matrix = defaultdict(lambda: defaultdict(int))
+    y_pred = model.predict('image.png')
+    print("Predicted label:", y_pred)
 
     texts = []
 
@@ -253,12 +149,14 @@ def calculate_and_plot_summary_metrics(cm: defaultdict):
         plt.text(bar.get_x() + bar.get_width()/2.0, yval, int(yval), va='bottom')
     plt.show()
 
+    y_pred = model.predict('image.png')
+    print("Predicted label:", y_pred)
 
 if __name__ == "__main__":
     # train_rf()
     # train_svm()
-
     # test_svm()
+    train_rf()
     # test_rf()
 
     detected_signs = run_for_one()
