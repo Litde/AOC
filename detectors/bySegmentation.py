@@ -164,16 +164,41 @@ def draw_all_detections(img, detections):
 def save_crops(img, detections, image_path, output_dir="cropped"):
     os.makedirs(output_dir, exist_ok=True)
     base = os.path.splitext(os.path.basename(image_path))[0]
-    paths = []
 
-    for idx, (x, y, w, h, label, n) in enumerate(detections, start=1):
-        crop = img[y:y+h, x:x+w]
+    saved_paths = []
+    for idx, (x, y, w, h, shape_label, approxed) in enumerate(detections, start=1):
+
+        H, W = img.shape[:2]
+
+        cx = x + w / 2
+        cy = y + h / 2
+
+        scale = 1.3
+        new_w = w * scale
+        new_h = h * scale
+
+        x1 = int(cx - new_w / 2)
+        y1 = int(cy - new_h / 2)
+        x2 = int(cx + new_w / 2)
+        y2 = int(cy + new_h / 2)
+
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(W, x2)
+        y2 = min(H, y2)
+
+        if x1 >= x2 or y1 >= y2:
+            continue
+
+        crop = img[y1:y2, x1:x2]
         if crop.size == 0:
             continue
-        p = os.path.join(output_dir, f"{base}_{label}_{idx}.jpg")
-        cv2.imwrite(p, crop)
-        paths.append(p)
-    return paths
+
+        save_path = os.path.join(output_dir, f"{base}_{shape_label}_{idx}.jpg")
+        cv2.imwrite(save_path, crop)
+        saved_paths.append(save_path)
+
+    return saved_paths
 
 def run_detector(image_path, printImages=True):
     img = cv2.imread(image_path)

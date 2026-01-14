@@ -130,10 +130,22 @@ def save_crops(img, detections, image_path, output_dir="cropped"):
 
         H, W = img.shape[:2]
 
-        x1 = max(0, x)
-        y1 = max(0, y)
-        x2 = min(W, x + w)
-        y2 = min(H, y + h)
+        cx = x + w / 2
+        cy = y + h / 2
+
+        scale = 1.3
+        new_w = w * scale
+        new_h = h * scale
+
+        x1 = int(cx - new_w / 2)
+        y1 = int(cy - new_h / 2)
+        x2 = int(cx + new_w / 2)
+        y2 = int(cy + new_h / 2)
+
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(W, x2)
+        y2 = min(H, y2)
 
         if x1 >= x2 or y1 >= y2:
             continue
