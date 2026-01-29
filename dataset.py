@@ -48,10 +48,10 @@ class MultiSignDataset:
         self.square = None
 
     def load(self):
-        self.circle = SignDataset('input/circle', 'circle', self.img_size)
-        self.triangle = SignDataset('input/triangle', 'triangle', self.img_size)
-        self.rectangle = SignDataset('input/rectangle', 'rectangle', self.img_size)
-        self.square = SignDataset('input/square', 'square', self.img_size)
+        self.circle = SignDataset('enhanced_input/circle', 'circle', self.img_size)
+        self.triangle = SignDataset('enhanced_input/triangle', 'triangle', self.img_size)
+        self.rectangle = SignDataset('enhanced_input/rectangle', 'rectangle', self.img_size)
+        self.square = SignDataset('enhanced_input/square', 'square', self.img_size)
 
         print("Circle samples:", len(self.circle.y))
         print("Triangle samples:", len(self.triangle.y))

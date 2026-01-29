@@ -12,8 +12,8 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 
 
-def train_svm():
-    model = ClusterSVM(target_class='square', img_size=(64, 64))
+def train_svm(target_class='rectangle'):
+    model = ClusterSVM(target_class=target_class, img_size=(64, 64))
     model.load_data()
 
     print(model.X.shape, model.y.shape)
@@ -27,15 +27,15 @@ def train_svm():
     }
 
     model.train_model(param_grid)
-    model.save_model('models/binary_square_model.joblib')
+    model.save_model(f'models/binary_{target_class}_model.joblib')
 
-def train_rf():
-    model = ClassificationRandomForest(data_dir='input/square', img_size=(64, 64), n_estimators=100, max_depth=None, random_state=42)
+def train_rf(target_class='rectangle'):
+    model = ClassificationRandomForest(data_dir=f'input/{target_class}', img_size=(64, 64), n_estimators=100, max_depth=None, random_state=42)
     model.load_data()
     print("Training Random Forest model...")
     metrics = model.train_model()
     print("Training metrics:", metrics)
-    model.save_model('models/rf_rectangle_model.joblib')
+    model.save_model(f'models/rf_{target_class}_model.joblib')
 
 def test_svm():
     model = ClusterSVM(target_class='rectangle', img_size=(64, 64))
@@ -154,14 +154,14 @@ def calculate_and_plot_summary_metrics(cm: defaultdict):
 
 if __name__ == "__main__":
     # train_rf()
-    # train_svm()
+    train_svm(target_class='circle')
     # test_svm()
-    train_rf()
+    # train_rf()
     # test_rf()
 
-    detected_signs = run_for_one()
-    for sign in detected_signs:
-        print(sign)
+    # detected_signs = run_for_one()
+    # for sign in detected_signs:
+    #     print(sign)
 
     # texts, cm = run_for_many(2, random_pick=False)
 
