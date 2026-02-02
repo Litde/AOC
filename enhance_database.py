@@ -1,10 +1,11 @@
 import os
 from PIL import Image, ImageOps
+from tqdm import tqdm
 
 # INPUT_DIR = "D:\Polibuda\Sezon_2_Semestr_2\AOC\input"
-INPUT_DIR = "E:\Saved files\Studia\Semestr 2\AOC\images"
+INPUT_DIR = "D:\Polibuda\Sezon_2_Semestr_2\AOC\input\\triangle"
 # OUTPUT_DIR = "D:\Polibuda\Sezon_2_Semestr_2\AOC\enhanced_input"
-OUTPUT_DIR = "E:\Saved files\Studia\Semestr 2\AOC\enhanced_images"
+OUTPUT_DIR = "D:\Polibuda\Sezon_2_Semestr_2\AOC\enhanced_images\\triangle"
 PADDING = 20          # pixels
 PADDING_COLOR = (0, 0, 0)  # black padding (RGB)
 PADDING_COLOR2 = (255, 255, 255)  # white padding (RGB)
@@ -13,7 +14,7 @@ PADDING_COLOR3 = (0, 128, 0) # green padding (RGB)
 VALID_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
 def process_dataset(input_dir, output_dir):
-    for class_name in os.listdir(input_dir):
+    for class_name in tqdm(os.listdir(input_dir)):
         class_path = os.path.join(input_dir, class_name)
 
         if not os.path.isdir(class_path):
