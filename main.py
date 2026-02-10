@@ -5,6 +5,7 @@ from ClusterSVM import ClusterSVM
 import detectors.byHough as hough
 import detectors.byApproxPolyDP as approxPolyDP
 import detectors.bySegmentation as segmentation
+import detectors.byRegionGrowing as regionGrowing
 import json
 import random
 from collections import defaultdict
@@ -79,15 +80,15 @@ def get_true_label(image_filename: str):
     return sorted(category_names)
 
 
-def run_for_one():
-    image_path = "JPEGImages/0000040.jpg"
+def run_for_one(image_path):
     all_crops = []
     to_print = []
 
     modules = [
-        ("hough", hough),
+        # ("hough", hough),
         ("approx", approxPolyDP),
-        ("segmentation", segmentation)
+        ("segmentation", segmentation),
+        ("region_growing", regionGrowing)
     ]
 
     for name, mod in modules:
@@ -100,10 +101,10 @@ def run_for_one():
 
     to_print.append("\nDETECTED SIGNS: ")
     printed_labels = set()
+    detected_shape = None
 
     for filename in all_crops:
         shapes = ["circle", "triangle", "rectangle"]
-        detected_shape = None
         for shape in shapes:
             label = test_svm(filename, shape)
             if label == shape:
@@ -140,7 +141,8 @@ def run_for_many(n: int, random_pick: bool = False):
     modules = [
         ("hough", hough),
         ("approx", approxPolyDP),
-        ("segmentation", segmentation)
+        ("segmentation", segmentation),
+        ("region_growing", regionGrowing)
     ]
 
     ignored_labels = {"x-1.1", "x-1.2"}
@@ -172,17 +174,19 @@ def run_for_many(n: int, random_pick: bool = False):
 
         predicted_labels = set()
 
-        for filename in all_crops:
-            if "circle" in filename or "octagon" in filename:
-                shape = "circle"
-            elif "triangle" in filename:
-                shape = "triangle"
-            elif "square" in filename or "rectangle" in filename:
-                shape = "rectangle"
-            else:
-                continue
+        detected_shape = None
+        pred = None
 
-            pred = test_svm(filename, shape)
+        for filename in all_crops:
+            shapes = ["circle", "triangle", "rectangle"]
+            for shape in shapes:
+                label = test_svm(filename, shape)
+                if label == shape:
+                    detected_shape = shape
+                    break
+            
+            if detected_shape == None:
+                pred = test_svm(filename, detected_shape)
 
             if pred is None:
                 continue
@@ -254,17 +258,21 @@ def calculate_and_plot_summary_metrics(cm: defaultdict):
 
 
 if __name__ == "__main__":
-    # train_rf()
-    # train_svm()
-
-    # test_svm()
-    # test_rf()
-
-    detected_signs = run_for_one()
+    #-------------------------------------------------------------------
+    image_name = "0000010.jpg"
+    detected_signs = run_for_one(f"JPEGImages\{image_name}")
     for sign in detected_signs:
         print(sign)
 
-    # texts, cm = run_for_many(2, random_pick=False)
+    categories = get_true_label( image_name)
+    print(f"Kategorie na obrazie {image_name}:")
+    for c in categories:
+        print("-", c)
+
+
+    #-------------------------------------------------------------------
+
+    # texts, cm = run_for_many(40, random_pick=True)
 
     # for t in texts:
     #     print(t)
@@ -274,10 +282,6 @@ if __name__ == "__main__":
     #     for pred_lbl, count in preds.items():
     #         print(f"{true_lbl} -> {pred_lbl}: {count}")
 
-    # calculate_and_plot_summary_metrics(cm)
 
-    # image_name = "0000036.jpg"
-    # categories = get_true_label( image_name)
-    # print(f"Kategorie na obrazie {image_name}:")
-    # for c in categories:
-    #     print("-", c)
+    # calculate_and_plot_summary_metrics(cm)
+    #-------------------------------------------------------------------

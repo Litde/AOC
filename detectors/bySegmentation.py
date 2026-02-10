@@ -17,7 +17,7 @@ MIN_CIRCULARITY = 0.8
 MAX_CIRCULARITY = 1.1
 
 # saliency
-SALIENCY_BLUR = 5
+SALIENCY_BLUR = 3
 SALIENCY_THRESH = 65
 
 
@@ -29,7 +29,6 @@ def boost_saturation(img):
     return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
 
 def apply_levels(img):
-    """Histogram stretching based on percentiles."""
     out = np.zeros_like(img)
     for c in range(3):
         ch = img[:, :, c]
@@ -53,7 +52,6 @@ def preprocess(img):
     return img
 
 def improved_hls_normalization(img):
-    """Enhanced HLS normalization inspired by Hanbury & Serra."""
     hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS).astype(np.float32)
     H, L, S = cv2.split(hls)
 
@@ -125,8 +123,8 @@ def classify_shape(cnt):
             return "rectangle", x, y, w, h, n
 
 
-    if n >= 8 and n < 10:
-        return "octagon", x, y, w, h, n
+    # if n >= 8 and n < 10:
+    #     return "octagon", x, y, w, h, n
 
     return None
 

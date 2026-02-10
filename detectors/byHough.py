@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from itertools import combinations
 
 # preprocess
 SATURATION_VALUE = 2
@@ -12,9 +13,9 @@ GAUSSIAN_BLUR = 5
 # hough / geometry
 HOUGH_RHO = 1
 HOUGH_THETA = np.pi / 180
-HOUGH_THRESHOLD = 30
-HOUGH_MIN_LINE_LENGTH = 45
-HOUGH_MAX_LINE_GAP = 5
+HOUGH_THRESHOLD = 40
+HOUGH_MIN_LINE_LENGTH = 40
+HOUGH_MAX_LINE_GAP = 10
 
 # contour filtering
 MIN_AREA = 800
@@ -23,7 +24,7 @@ MIN_AREA = 800
 HOUGH_CIRCLES_DP = 1
 HOUGH_CIRCLES_MIN_DIST = 100
 HOUGH_CIRCLES_PARAM1 = 400
-HOUGH_CIRCLES_PARAM2 = 60
+HOUGH_CIRCLES_PARAM2 = 65
 HOUGH_CIRCLES_MIN_RADIUS = 10
 HOUGH_CIRCLES_MAX_RADIUS = 700
 
@@ -31,7 +32,7 @@ HOUGH_CIRCLES_MAX_RADIUS = 700
 ASPECT_RATIO_TOLERANCE = 0.5
 
 # clustering distance for intersection points
-INTERSECTION_CLUSTER_EPS = 8
+INTERSECTION_CLUSTER_EPS = 25
 
 CANNY_LOW_TRESHOLD = 50
 CANNY_HIGH_TRESHOLD = 200
@@ -107,6 +108,68 @@ def cluster_points(points, eps=INTERSECTION_CLUSTER_EPS):
     return centers
 
 
+def cluster_circles(circles, eps):
+    """Simple agglomerative clustering for circles.
+    Groups circles whose centers are within eps distance.
+    Returns list of cluster centers (average points and radius).
+    """
+    clusters = []  # Each element: [cx, cy, r_sum, count]
+    for (x, y, r) in circles:
+        placed = False
+        for cl in clusters:
+            cx, cy, _, count = cl
+            # Check distance to cluster center
+            if (x - cx) ** 2 + (y - cy) ** 2 <= eps ** 2:
+                # Update centroid and radius sum
+                cl[0] = (cl[0] * count + x) / (count + 1)
+                cl[1] = (cl[1] * count + y) / (count + 1)
+                cl[2] += r
+                cl[3] += 1
+                placed = True
+                break
+        if not placed:
+            clusters.append([float(x), float(y), float(r), 1])
+
+    # Calculate average radius and return final circles
+    final_circles = [(int(c[0]), int(c[1]), int(c[2] / c[3])) for c in clusters]
+    return final_circles
+
+
+def cluster_polygons(detections, eps):
+    """Cluster polygon detections based on bounding box center distance."""
+    # Detections are (x, y, w, h, label, n_vertices)
+    clusters = []  # [cx, cy, w_sum, h_sum, count, label, n_vertices]
+    for (x, y, w, h, label, n) in detections:
+        px, py = x + w / 2, y + h / 2
+        placed = False
+        for cl in clusters:
+            # only merge same-shaped polygons
+            if cl[5] != label:
+                continue
+
+            cx, cy, _, _, count, _, _ = cl
+            if (px - cx)**2 + (py - cy)**2 <= eps**2:
+                cl[0] = (cl[0] * count + px) / (count + 1)
+                cl[1] = (cl[1] * count + py) / (count + 1)
+                cl[2] += w
+                cl[3] += h
+                cl[4] += 1
+                placed = True
+                break
+        if not placed:
+            clusters.append([px, py, float(w), float(h), 1, label, n])
+
+    final_detections = []
+    for cl in clusters:
+        cx, cy, w_sum, h_sum, count, label, n = cl
+        avg_w = int(w_sum / count)
+        avg_h = int(h_sum / count)
+        avg_x = int(cx - avg_w / 2)
+        avg_y = int(cy - avg_h / 2)
+        final_detections.append((avg_x, avg_y, avg_w, avg_h, label, n))
+    return final_detections
+
+
 def polygon_from_points(points):
     """Compute convex hull (polygon) from list of points and return as integer array."""
     pts = np.array(points, dtype=np.int32)
@@ -161,109 +224,160 @@ def save_crops(img, detections, image_path, output_dir="cropped"):
     return saved_paths
 
 
-def detect_lines(edges):
-    """Return list of lines from probabilistic Hough (x1,y1,x2,y2)."""
-    raw = cv2.HoughLinesP(edges, HOUGH_RHO, HOUGH_THETA, HOUGH_THRESHOLD,
-                          minLineLength=HOUGH_MIN_LINE_LENGTH, maxLineGap=HOUGH_MAX_LINE_GAP)
-    if raw is None:
-        return []
-    lines = [tuple(l[0]) for l in raw]
-    return lines
-
-
 def detect_polygons_from_lines(img, edges):
     """
-    Strategy:
-    - use HoughLinesP to get many line segments
-    - compute intersections of line pairs
-    - cluster intersections to get stable vertices
-    - compute convex hull of vertex set -> candidate polygon
-    - if hull has 3 -> triangle, 4 -> check square aspect ratio -> square
+    Detects triangles and squares by processing the image in tiles.
+    - Triangles are found by finding intersections of line triplets.
+    - Squares are found using a fallback to the clustered convex hull method.
     """
     output = img.copy()
-    detections = []
+    all_detections = []
 
-    lines = detect_lines(edges)
+    # --- Tiling logic ---
+    overlap_percent = 0.1
+    h, w = edges.shape
+    mid_x, mid_y = w // 2, h // 2
+    overlap_x = int(mid_x * overlap_percent)
+    overlap_y = int(mid_y * overlap_percent)
+    tiles_coords = [
+        (0, 0, mid_x + overlap_x, mid_y + overlap_y),  # Top-left
+        (mid_x - overlap_x, 0, w, mid_y + overlap_y),  # Top-right
+        (0, mid_y - overlap_y, mid_x + overlap_x, h),  # Bottom-left
+        (mid_x - overlap_x, mid_y - overlap_y, w, h)  # Bottom-right
+    ]
 
-    if len(lines) < 2:
-        return output, detections
+    for x1, y1, x2, y2 in tiles_coords:
+        x1, y1, x2, y2 = max(0, x1), max(0, y1), min(w, x2), min(h, y2)
+        tile_edges = edges[y1:y2, x1:x2]
+        tile_h, tile_w = tile_edges.shape
 
-    # compute intersections
-    intersections = []
-    for i in range(len(lines)):
-        for j in range(i+1, len(lines)):
-            p = line_intersection(lines[i], lines[j])
-            if p is not None:
-                # optionally discard intersections far outside image
-                h, w = img.shape[:2]
-                if -w <= p[0] <= 2*w and -h <= p[1] <= 2*h:
+        if tile_edges.size < MIN_AREA:
+            continue
+
+        lines = cv2.HoughLinesP(tile_edges, HOUGH_RHO, HOUGH_THETA, HOUGH_THRESHOLD,
+                                minLineLength=HOUGH_MIN_LINE_LENGTH, maxLineGap=HOUGH_MAX_LINE_GAP)
+
+        if lines is None or len(lines) < 3:
+            continue
+
+        lines = [l[0] for l in lines]
+
+        # --- New Triangle Detection (from line triplets) ---
+        MAX_LINES_FOR_COMBINATIONS = 100  # Safety limit
+        if len(lines) < MAX_LINES_FOR_COMBINATIONS:
+            MAX_SIGN_DIM = max(tile_h, tile_w) * 0.75  # Max dimension of a sign in the tile
+            MIN_TRIANGLE_SOLIDITY = 0.4
+
+            for l1, l2, l3 in combinations(lines, 3):
+                p12 = line_intersection(l1, l2)
+                p23 = line_intersection(l2, l3)
+                p31 = line_intersection(l3, l1)
+
+                if p12 and p23 and p31:
+                    poly = np.array([p12, p23, p31], dtype=np.int32)
+                    area = cv2.contourArea(poly)
+                    if area < MIN_AREA:
+                        continue
+
+                    x, y, w_poly, h_poly = cv2.boundingRect(poly)
+
+                    if max(w_poly, h_poly) > MAX_SIGN_DIM or w_poly == 0 or h_poly == 0:
+                        continue
+
+                    solidity = area / (w_poly * h_poly)
+                    if solidity < MIN_TRIANGLE_SOLIDITY:
+                        continue
+
+                    all_detections.append((x + x1, y + y1, w_poly, h_poly, "triangle", 3))
+
+        # --- Fallback/Square Detection (old logic, per tile) ---
+        intersections = []
+        for i in range(len(lines)):
+            for j in range(i + 1, len(lines)):
+                p = line_intersection(lines[i], lines[j])
+                if p is not None and -tile_w <= p[0] <= 2 * tile_w and -tile_h <= p[1] <= 2 * tile_h:
                     intersections.append(p)
 
-    if not intersections:
-        return output, detections
+        if len(intersections) > 3:
+            clustered = cluster_points(intersections)
+            if len(clustered) == 4:  # Look specifically for 4-vertex hulls
+                poly = polygon_from_points(clustered)
+                if poly is not None and len(poly) == 4:
+                    area = cv2.contourArea(poly)
+                    if area < MIN_AREA:
+                        continue
 
-    #cluster intersections to reduce duplicates
-    clustered = cluster_points(intersections)
+                    x, y, w_poly, h_poly = bbox_from_polygon(poly)
+                    if h_poly > 0:
+                        aspect_ratio = float(w_poly) / h_poly
+                        if abs(1 - aspect_ratio) <= ASPECT_RATIO_TOLERANCE:
+                            all_detections.append((x + x1, y + y1, w_poly, h_poly, "square", 4))
 
-    #compute convex hull of clustered points
-    poly = polygon_from_points(clustered)
-    if poly is None:
-        return output, detections
+    if not all_detections:
+        return output, []
 
-    #filter small polygons by area
-    area = cv2.contourArea(poly)
-    if area < MIN_AREA:
-        return output, detections
+    # --- Merge overlapping detections ---
+    detections = cluster_polygons(all_detections, eps=HOUGH_CIRCLES_MIN_DIST / 2)
 
-    #decide by number of hull vertices
-    n_vertices = len(poly)
-    x, y, w, h = bbox_from_polygon(poly)
-
-    if n_vertices == 3:
-        label = "triangle"
-    elif n_vertices == 4:
-        # check aspect ratio to be square-like
-        aspect_ratio = float(w) / h if h != 0 else 0
-        if abs(1 - aspect_ratio) <= ASPECT_RATIO_TOLERANCE:
-            label = "square"
-        else:
-            return output, detections
-    else:
-        return output, detections
-
-    detections.append((x, y, w, h, label, n_vertices))
-
-    # draw polygon and bbox for visualization
-    cv2.polylines(output, [poly], True, (0, 255, 255) if label == "square" else (0, 0, 255), 2)
-    cv2.rectangle(output, (x, y), (x + w, y + h), (0, 255, 255) if label == "square" else (0, 0, 255), 2)
-    cv2.putText(output, label, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
-                (0, 255, 255) if label == "square" else (0, 0, 255), 2)
+    # --- Drawing logic ---
+    for (x, y, w, h, label, n_vertices) in detections:
+        color = (0, 0, 255) if label == "triangle" else (0, 255, 255)
+        cv2.rectangle(output, (x, y), (x + w, y + h), color, 2)
+        cv2.putText(output, label, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
     return output, detections
 
 
 def detect_circles_hough(img, blurred):
-    """Detect circles via HoughCircles and return detection"""
+    """Detect circles via HoughCircles by processing image in tiles and return detection"""
     output = img.copy()
     detections = []
+    all_circles = []
+    h, w = blurred.shape
+    overlap_percent = 0.1
 
-    # HoughCircles expects gray/blurred image
-    circles = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=HOUGH_CIRCLES_DP,
-                               minDist=HOUGH_CIRCLES_MIN_DIST,
-                               param1=HOUGH_CIRCLES_PARAM1,
-                               param2=HOUGH_CIRCLES_PARAM2,
-                               minRadius=HOUGH_CIRCLES_MIN_RADIUS,
-                               maxRadius=HOUGH_CIRCLES_MAX_RADIUS)
-    if circles is None:
+    # Define coordinates for 4 overlapping tiles
+    mid_x, mid_y = w // 2, h // 2
+    overlap_x = int(mid_x * overlap_percent)
+    overlap_y = int(mid_y * overlap_percent)
+
+    tiles_coords = [
+        (0, 0, mid_x + overlap_x, mid_y + overlap_y),  # Top-left
+        (mid_x - overlap_x, 0, w, mid_y + overlap_y),  # Top-right
+        (0, mid_y - overlap_y, mid_x + overlap_x, h),  # Bottom-left
+        (mid_x - overlap_x, mid_y - overlap_y, w, h)  # Bottom-right
+    ]
+
+    for x1, y1, x2, y2 in tiles_coords:
+        x1, y1, x2, y2 = max(0, x1), max(0, y1), min(w, x2), min(h, y2)
+        tile_blurred = blurred[y1:y2, x1:x2]
+
+        if tile_blurred.size == 0:
+            continue
+
+        circles_in_tile = cv2.HoughCircles(tile_blurred, cv2.HOUGH_GRADIENT, dp=HOUGH_CIRCLES_DP,
+                                           minDist=HOUGH_CIRCLES_MIN_DIST,
+                                           param1=HOUGH_CIRCLES_PARAM1,
+                                           param2=HOUGH_CIRCLES_PARAM2,
+                                           minRadius=HOUGH_CIRCLES_MIN_RADIUS,
+                                           maxRadius=HOUGH_CIRCLES_MAX_RADIUS)
+
+        if circles_in_tile is not None:
+            circles_in_tile = np.round(circles_in_tile[0, :]).astype("int")
+            for (x_center, y_center, r) in circles_in_tile:
+                all_circles.append((x_center + x1, y_center + y1, r))
+
+    if not all_circles:
         return output, detections
 
-    circles = np.round(circles[0, :]).astype("int")
-    for (x_center, y_center, r) in circles:
+    # Cluster circles to merge duplicates from overlapping regions
+    clustered_circles = cluster_circles(all_circles, eps=HOUGH_CIRCLES_MIN_DIST)
+
+    for (x_center, y_center, r) in clustered_circles:
         x = x_center - r
         y = y_center - r
         w = h = 2 * r
 
-        #area filter
         if w * h < MIN_AREA:
             continue
 
