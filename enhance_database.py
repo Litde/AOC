@@ -2,9 +2,9 @@ import os
 from PIL import Image, ImageOps
 
 # INPUT_DIR = "D:\Polibuda\Sezon_2_Semestr_2\AOC\input"
-INPUT_DIR = "E:\Saved files\Studia\Semestr 2\AOC\images"
+INPUT_DIR = "E:\\Saved files\\Studia\\Semestr 2\\AOC\\input\\stop"
 # OUTPUT_DIR = "D:\Polibuda\Sezon_2_Semestr_2\AOC\enhanced_input"
-OUTPUT_DIR = "E:\Saved files\Studia\Semestr 2\AOC\enhanced_images"
+OUTPUT_DIR = "E:\\Saved files\\Studia\\Semestr 2\\AOC\\enhanced_input\\stop"
 PADDING = 20          # pixels
 PADDING_COLOR = (0, 0, 0)  # black padding (RGB)
 PADDING_COLOR2 = (255, 255, 255)  # white padding (RGB)
@@ -56,20 +56,20 @@ def process_dataset(input_dir, output_dir):
                     padded_save_path = os.path.join(out_dir, new_filename)
                     padded_img.save(padded_save_path)
 
-                padding = PADDING * 2
-                for i, color in enumerate([PADDING_COLOR, PADDING_COLOR2, PADDING_COLOR3]):
-                    new_filename = image_name + "_padded2" + str(i) + "." + extension
-
-                    # Add padding
-                    padded_img = ImageOps.expand(
-                        img,
-                        border=padding,
-                        fill=color
-                    )
-
-                    # Save padded
-                    padded_save_path = os.path.join(out_dir, new_filename)
-                    padded_img.save(padded_save_path)
+                # padding = PADDING * 2
+                # for i, color in enumerate([PADDING_COLOR, PADDING_COLOR2, PADDING_COLOR3]):
+                #     new_filename = image_name + "_padded2" + str(i) + "." + extension
+                #
+                #     # Add padding
+                #     padded_img = ImageOps.expand(
+                #         img,
+                #         border=padding,
+                #         fill=color
+                #     )
+                #
+                #     # Save padded
+                #     padded_save_path = os.path.join(out_dir, new_filename)
+                #     padded_img.save(padded_save_path)
 
     print("Processing completed.")
 
