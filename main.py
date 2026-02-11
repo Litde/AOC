@@ -154,7 +154,7 @@ def calculate_and_plot_summary_metrics(cm: defaultdict):
 
 if __name__ == "__main__":
     # train_rf()
-    train_svm(target_class='circle')
+    train_svm(target_class='rectangle')
     # test_svm()
     # train_rf()
     # test_rf()
