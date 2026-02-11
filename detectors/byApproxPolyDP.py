@@ -3,21 +3,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-#preprocess
-SATURATION_VALUE = 2
-LEVEL_LOW = 2
-LEVEL_HIGH = 98
-GAUSSIAN_FILTER_SIZE = 3
-GAUSSIAN_FILTER_THRESHOLD = 0
+SATURATION_VALUE = 2 #boost_saturation
+LEVEL_LOW = 2 #apply_levels
+LEVEL_HIGH = 98 #apply_levels
 
-#contour filtering
-MIN_AREA = 800
-COLOR_VARIANCE_THRESHOLD = 0
+MIN_AREA = 800 #contour filtering
 
-#square detection
 ASPECT_RATIO_TOLERANCE = 0.2
 
-#circle detection
+CANNY_LOW_TRESHOLD = 50
+CANNY_HIGH_TRESHOLD = 300
+
 MIN_CIRCULARITY = 0.5
 MAX_CIRCULARITY = 1.2
 
@@ -54,11 +50,8 @@ def save_crops(img, detections, image_path, output_dir="cropped"):
     saved_paths = []
     for idx, (x, y, w, h, shape_label, approxed) in enumerate(detections, start=1):
 
-        H, W = img.shape[:2]
-
-        cx = x + w / 2
-        cy = y + h / 2
-
+        H = img.shape[:2]
+        cx = x + w / 2 cy = y + h / 2
         scale = 1.3
         new_w = w * scale
         new_h = h * scale
@@ -203,7 +196,6 @@ def run_detector(image_path, printImages=True):
     list_of_crop_paths = save_crops(img, all_detections, image_path)
 
     if printImages:
-        #-------------------------------Printing----------------------------
         combined_img = draw_all_detections(img, all_detections)
 
         plt.figure(figsize=(10, 8))
@@ -211,6 +203,47 @@ def run_detector(image_path, printImages=True):
         plt.title(f"Contours detectetion by number of approxPolyDP")
         plt.axis("off")
         plt.show()
-        #-------------------------------------------------------------------
 
     return list_of_crop_paths
+
+if __name__ == '__main__':
+    # --- Konfiguracja ---
+    CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+    PARENT_DIR = os.path.dirname(CURRENT_DIR)
+    image_path = os.path.join(PARENT_DIR, "JPEGImages", "0000273.jpg")
+
+    # --- Wczytanie i przetwarzanie obrazu ---
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"Błąd: Nie można wczytać obrazu ze ścieżki: {image_path}")
+    else:
+        print("1. Przetwarzanie wstępne obrazu (canny)...")
+        edges = preprocess(img)
+
+        print("2. Wykrywanie kształtów (approxPolyDP)...")
+        _, tri_det = detect_triangles(img, edges)
+        _, sq_det = detect_squares(img, edges)
+        _, circ_det = detect_circles(img, edges)
+        all_detections = tri_det + sq_det + circ_det
+
+        print("3. Rysowanie wszystkich detekcji...")
+        img_with_detections = draw_all_detections(img, all_detections)
+
+        # --- Wyświetlanie wyników krok po kroku ---
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        fig.suptitle("Wizualizacja kroków detekcji (byApproxPolyDP)", fontsize=16)
+
+        axes[0].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        axes[0].set_title("Oryginalny obraz")
+        axes[0].axis('off')
+
+        axes[1].imshow(edges, cmap='gray')
+        axes[1].set_title("Krawędzie Canny")
+        axes[1].axis('off')
+
+        axes[2].imshow(cv2.cvtColor(img_with_detections, cv2.COLOR_BGR2RGB))
+        axes[2].set_title("Finalne detekcje")
+        axes[2].axis('off')
+
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        plt.show()

@@ -11,6 +11,7 @@ import random
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
+import cv2
 
 
 def train_svm():
@@ -85,7 +86,7 @@ def run_for_one(image_path):
     to_print = []
 
     modules = [
-        # ("hough", hough),
+        ("hough", hough),
         ("approx", approxPolyDP),
         ("segmentation", segmentation),
         ("region_growing", regionGrowing)
@@ -154,6 +155,10 @@ def run_for_many(n: int, random_pick: bool = False):
     for image_name in images:
         image_path = os.path.join(image_dir, image_name)
 
+        if not os.path.exists(image_path) or cv2.imread(image_path) is None:
+            texts.append(f"Nie można otworzyć obrazu, pomijanie: {image_name}")
+            continue
+
         try:
             true_labels = {
                 lbl.lower() for lbl in get_true_label(image_name)
@@ -197,17 +202,17 @@ def run_for_many(n: int, random_pick: bool = False):
 
             predicted_labels.add(pred)
 
-        # Prawidłowo zidentyfikowane znaki (True Positives)
+        #True Positives
         true_positives = true_labels.intersection(predicted_labels)
         for lbl in true_positives:
             confusion_matrix[lbl][lbl] += 1
 
-        # Pominięte znaki (False Negatives)
+        #False Negatives
         false_negatives = true_labels.difference(predicted_labels)
         for lbl in false_negatives:
             confusion_matrix[lbl]['<brak_predykcji>'] += 1
 
-        # Błędnie zidentyfikowane znaki (False Positives)
+        #False Positives
         false_positives = predicted_labels.difference(true_labels)
         for lbl in false_positives:
             confusion_matrix['<fałszywy_pozytyw>'][lbl] += 1
@@ -225,15 +230,13 @@ def calculate_and_plot_summary_metrics(cm: defaultdict):
 
     true_labels = sorted([k for k in cm.keys() if k != "<fałszywy_pozytyw>"])
 
-    # Obliczanie TP i FN na podstawie prawdziwych etykiet
     for true_lbl in true_labels:
         preds = cm.get(true_lbl, {})
-        # Poprawnie wykryty i sklasyfikowany znak (True Positive)
+        #True Positive
         tp += preds.get(true_lbl, 0)
-        # Niewykryty znak (False Negative)
+        #False Negative
         fn += preds.get('<brak_predykcji>', 0)
 
-    # Obliczanie FP na podstawie detekcji, które nie miały odpowiednika w prawdziwych etykietach
     fp += sum(cm.get("<fałszywy_pozytyw>", {}).values())
 
     print("\n--- Sumaryczna Macierz Pomyłek ---")

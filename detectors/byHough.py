@@ -10,32 +10,30 @@ LEVEL_LOW = 2
 LEVEL_HIGH = 98
 GAUSSIAN_BLUR = 5
 
-# hough / geometry
+#hough linie
 HOUGH_RHO = 1
 HOUGH_THETA = np.pi / 180
-HOUGH_THRESHOLD = 40
-HOUGH_MIN_LINE_LENGTH = 40
-HOUGH_MAX_LINE_GAP = 10
+HOUGH_THRESHOLD = 60
+HOUGH_MIN_LINE_LENGTH = 60
+HOUGH_MAX_LINE_GAP = 30
 
-# contour filtering
 MIN_AREA = 800
 
-# circle Hough
+#Hough kolka
 HOUGH_CIRCLES_DP = 1
 HOUGH_CIRCLES_MIN_DIST = 100
-HOUGH_CIRCLES_PARAM1 = 400
-HOUGH_CIRCLES_PARAM2 = 65
+HOUGH_CIRCLES_PARAM1 = 300 # Górny próg
+HOUGH_CIRCLES_PARAM2 = 50  #Próg akumulatora
 HOUGH_CIRCLES_MIN_RADIUS = 10
 HOUGH_CIRCLES_MAX_RADIUS = 700
 
-# square detection
+#square ratio
 ASPECT_RATIO_TOLERANCE = 0.5
 
-# clustering distance for intersection points
 INTERSECTION_CLUSTER_EPS = 25
 
-CANNY_LOW_TRESHOLD = 50
-CANNY_HIGH_TRESHOLD = 200
+CANNY_LOW_TRESHOLD = 75
+CANNY_HIGH_TRESHOLD = 250
 
 
 def boost_saturation(img):
@@ -47,7 +45,6 @@ def boost_saturation(img):
 
 
 def apply_levels(img):
-    """Histogram stretching based on percentiles."""
     output = np.zeros_like(img)
     for c in range(3):
         ch = img[:, :, c]
@@ -69,9 +66,6 @@ def preprocess(img):
 
 
 def line_intersection(line1, line2):
-    """Compute intersection point of two lines given as (x1,y1,x2,y2).
-    Returns (x,y) or None if parallel.
-    """
     x1, y1, x2, y2 = line1
     x3, y3, x4, y4 = line2
 
@@ -84,17 +78,12 @@ def line_intersection(line1, line2):
 
 
 def cluster_points(points, eps=INTERSECTION_CLUSTER_EPS):
-    """Simple agglomerative clustering: group points within eps distance.
-    Returns list of cluster centers (average points).
-    """
     clusters = []
     for p in points:
         placed = False
         for cl in clusters:
-            # compute distance to cluster center
             cx, cy, count = cl
             if (p[0] - cx)**2 + (p[1] - cy)**2 <= eps**2:
-                # update centroid
                 new_cx = (cx * count + p[0]) / (count + 1)
                 new_cy = (cy * count + p[1]) / (count + 1)
                 cl[0] = new_cx
@@ -109,18 +98,13 @@ def cluster_points(points, eps=INTERSECTION_CLUSTER_EPS):
 
 
 def cluster_circles(circles, eps):
-    """Simple agglomerative clustering for circles.
-    Groups circles whose centers are within eps distance.
-    Returns list of cluster centers (average points and radius).
-    """
-    clusters = []  # Each element: [cx, cy, r_sum, count]
+    clusters = []  #[cx, cy, r_sum, count]
     for (x, y, r) in circles:
         placed = False
         for cl in clusters:
             cx, cy, _, count = cl
-            # Check distance to cluster center
+            # Check distance to center
             if (x - cx) ** 2 + (y - cy) ** 2 <= eps ** 2:
-                # Update centroid and radius sum
                 cl[0] = (cl[0] * count + x) / (count + 1)
                 cl[1] = (cl[1] * count + y) / (count + 1)
                 cl[2] += r
@@ -130,15 +114,12 @@ def cluster_circles(circles, eps):
         if not placed:
             clusters.append([float(x), float(y), float(r), 1])
 
-    # Calculate average radius and return final circles
     final_circles = [(int(c[0]), int(c[1]), int(c[2] / c[3])) for c in clusters]
     return final_circles
 
 
 def cluster_polygons(detections, eps):
-    """Cluster polygon detections based on bounding box center distance."""
-    # Detections are (x, y, w, h, label, n_vertices)
-    clusters = []  # [cx, cy, w_sum, h_sum, count, label, n_vertices]
+    clusters = []  #[cx, cy, w_sum, h_sum, count, label, n_vertices]
     for (x, y, w, h, label, n) in detections:
         px, py = x + w / 2, y + h / 2
         placed = False
@@ -171,7 +152,6 @@ def cluster_polygons(detections, eps):
 
 
 def polygon_from_points(points):
-    """Compute convex hull (polygon) from list of points and return as integer array."""
     pts = np.array(points, dtype=np.int32)
     if pts.shape[0] < 3:
         return None
@@ -225,25 +205,19 @@ def save_crops(img, detections, image_path, output_dir="cropped"):
 
 
 def detect_polygons_from_lines(img, edges):
-    """
-    Detects triangles and squares by processing the image in tiles.
-    - Triangles are found by finding intersections of line triplets.
-    - Squares are found using a fallback to the clustered convex hull method.
-    """
     output = img.copy()
     all_detections = []
 
-    # --- Tiling logic ---
     overlap_percent = 0.1
     h, w = edges.shape
     mid_x, mid_y = w // 2, h // 2
     overlap_x = int(mid_x * overlap_percent)
     overlap_y = int(mid_y * overlap_percent)
     tiles_coords = [
-        (0, 0, mid_x + overlap_x, mid_y + overlap_y),  # Top-left
-        (mid_x - overlap_x, 0, w, mid_y + overlap_y),  # Top-right
-        (0, mid_y - overlap_y, mid_x + overlap_x, h),  # Bottom-left
-        (mid_x - overlap_x, mid_y - overlap_y, w, h)  # Bottom-right
+        (0, 0, mid_x + overlap_x, mid_y + overlap_y),  #Top-left
+        (mid_x - overlap_x, 0, w, mid_y + overlap_y),  #Top-right
+        (0, mid_y - overlap_y, mid_x + overlap_x, h),  #bot-left
+        (mid_x - overlap_x, mid_y - overlap_y, w, h)  #bot-right
     ]
 
     for x1, y1, x2, y2 in tiles_coords:
@@ -262,10 +236,9 @@ def detect_polygons_from_lines(img, edges):
 
         lines = [l[0] for l in lines]
 
-        # --- New Triangle Detection (from line triplets) ---
-        MAX_LINES_FOR_COMBINATIONS = 100  # Safety limit
+        MAX_LINES_FOR_COMBINATIONS = 100 
         if len(lines) < MAX_LINES_FOR_COMBINATIONS:
-            MAX_SIGN_DIM = max(tile_h, tile_w) * 0.75  # Max dimension of a sign in the tile
+            MAX_SIGN_DIM = max(tile_h, tile_w) * 0.75
             MIN_TRIANGLE_SOLIDITY = 0.4
 
             for l1, l2, l3 in combinations(lines, 3):
@@ -290,7 +263,6 @@ def detect_polygons_from_lines(img, edges):
 
                     all_detections.append((x + x1, y + y1, w_poly, h_poly, "triangle", 3))
 
-        # --- Fallback/Square Detection (old logic, per tile) ---
         intersections = []
         for i in range(len(lines)):
             for j in range(i + 1, len(lines)):
@@ -300,7 +272,7 @@ def detect_polygons_from_lines(img, edges):
 
         if len(intersections) > 3:
             clustered = cluster_points(intersections)
-            if len(clustered) == 4:  # Look specifically for 4-vertex hulls
+            if len(clustered) == 4:  #4 vertex
                 poly = polygon_from_points(clustered)
                 if poly is not None and len(poly) == 4:
                     area = cv2.contourArea(poly)
@@ -316,10 +288,8 @@ def detect_polygons_from_lines(img, edges):
     if not all_detections:
         return output, []
 
-    # --- Merge overlapping detections ---
     detections = cluster_polygons(all_detections, eps=HOUGH_CIRCLES_MIN_DIST / 2)
 
-    # --- Drawing logic ---
     for (x, y, w, h, label, n_vertices) in detections:
         color = (0, 0, 255) if label == "triangle" else (0, 255, 255)
         cv2.rectangle(output, (x, y), (x + w, y + h), color, 2)
@@ -329,23 +299,21 @@ def detect_polygons_from_lines(img, edges):
 
 
 def detect_circles_hough(img, blurred):
-    """Detect circles via HoughCircles by processing image in tiles and return detection"""
     output = img.copy()
     detections = []
     all_circles = []
     h, w = blurred.shape
     overlap_percent = 0.1
 
-    # Define coordinates for 4 overlapping tiles
     mid_x, mid_y = w // 2, h // 2
     overlap_x = int(mid_x * overlap_percent)
     overlap_y = int(mid_y * overlap_percent)
 
     tiles_coords = [
-        (0, 0, mid_x + overlap_x, mid_y + overlap_y),  # Top-left
+        (0, 0, mid_x + overlap_x, mid_y + overlap_y),  # top-left
         (mid_x - overlap_x, 0, w, mid_y + overlap_y),  # Top-right
-        (0, mid_y - overlap_y, mid_x + overlap_x, h),  # Bottom-left
-        (mid_x - overlap_x, mid_y - overlap_y, w, h)  # Bottom-right
+        (0, mid_y - overlap_y, mid_x + overlap_x, h),  # bot-left
+        (mid_x - overlap_x, mid_y - overlap_y, w, h)  # bot-right
     ]
 
     for x1, y1, x2, y2 in tiles_coords:
@@ -370,7 +338,6 @@ def detect_circles_hough(img, blurred):
     if not all_circles:
         return output, detections
 
-    # Cluster circles to merge duplicates from overlapping regions
     clustered_circles = cluster_circles(all_circles, eps=HOUGH_CIRCLES_MIN_DIST)
 
     for (x_center, y_center, r) in clustered_circles:
@@ -398,8 +365,16 @@ def draw_all_detections(img, detections):
     for (x, y, w, h, shape_label, n_points) in detections:
         color = shape_colors.get(shape_label, (0, 255, 0))
 
-        # bounding box
+        if shape_label == "circle":
+            center = (int(x + w / 2), int(y + h / 2))
+            radius = int(w / 2)
+            cv2.circle(output, center, radius, color, 2)
+        else:
+            #bounding box for polygons
+            cv2.rectangle(output, (x, y), (x + w, y + h), color, 2)
+        # bounding box for polygons
         cv2.rectangle(output, (x, y), (x + w, y + h), color, 2)
+
         # label under bbox
         cv2.putText(
             output,
@@ -421,10 +396,8 @@ def run_detector(image_path, printImages=True):
 
     edges, blurred = preprocess(img)
 
-    #polygons via line intersections (triangles/squares)
     out_poly, poly_det = detect_polygons_from_lines(img, edges)
 
-    #circles via HoughCircles
     out_circ, circ_det = detect_circles_hough(img, blurred)
 
     all_detections = poly_det + circ_det
@@ -442,3 +415,56 @@ def run_detector(image_path, printImages=True):
         #-------------------------------------------------------------------
 
     return list_of_crop_paths
+
+if __name__ == '__main__':
+    CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+    PARENT_DIR = os.path.dirname(CURRENT_DIR)
+    image_path = os.path.join(PARENT_DIR, "JPEGImages", "0005911.jpg")
+
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"Błąd: Nie można wczytać obrazu ze ścieżki: {image_path}")
+    else:
+        print("1. Przetwarzanie wstępne obrazu (canny, blur)...")
+        edges, blurred = preprocess(img)
+
+        print("1.5. Wykrywanie linii Hougha (do wizualizacji)...")
+        lines = cv2.HoughLinesP(edges, HOUGH_RHO, HOUGH_THETA, HOUGH_THRESHOLD,
+                                minLineLength=HOUGH_MIN_LINE_LENGTH, maxLineGap=HOUGH_MAX_LINE_GAP)
+        img_with_lines = img.copy()
+        if lines is not None:
+            for line in lines:
+                x1, y1, x2, y2 = line[0]
+                cv2.line(img_with_lines, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        print("2. Wykrywanie wielokątów (trójkąty, kwadraty)...")
+        _, poly_det = detect_polygons_from_lines(img, edges)
+
+        print("3. Wykrywanie okręgów...")
+        _, circ_det = detect_circles_hough(img, blurred)
+
+        print("4. Rysowanie wszystkich detekcji...")
+        all_detections = poly_det + circ_det
+        img_with_detections = draw_all_detections(img, all_detections)
+
+        fig, axes = plt.subplots(1, 4, figsize=(24, 6))
+        fig.suptitle("Wizualizacja kroków detekcji (byHough)", fontsize=16)
+
+        axes[0].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        axes[0].set_title("Oryginalny obraz")
+        axes[0].axis('off')
+
+        axes[1].imshow(edges, cmap='gray')
+        axes[1].set_title("Krawędzie Canny")
+        axes[1].axis('off')
+
+        axes[2].imshow(cv2.cvtColor(img_with_lines, cv2.COLOR_BGR2RGB))
+        axes[2].set_title("Wykryte linie Hougha")
+        axes[2].axis('off')
+
+        axes[3].imshow(cv2.cvtColor(img_with_detections, cv2.COLOR_BGR2RGB))
+        axes[3].set_title("Finalne detekcje")
+        axes[3].axis('off')
+
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        plt.show()
