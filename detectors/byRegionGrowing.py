@@ -7,8 +7,8 @@ SATURATION_VALUE = 2 #boost_saturation
 LEVEL_LOW = 5 #apply_levels
 LEVEL_HIGH = 95 #apply_levels
 
-FLOOD_FILL_TOLERANCE = (10, 10, 10)
-GRID_STEP = 50
+FLOOD_FILL_TOLERANCE = (20, 20, 20)
+GRID_STEP = 20
 
 MIN_AREA = 300 #contour
 
@@ -81,15 +81,12 @@ def detect_shapes_from_mask(mask):
     return detections
 
 def draw_all_detections(img, detections):
-    color_map = {
-        "triangle": (0, 0, 255), "square": (255, 0, 0),
-        "rectangle": (255, 128, 0), "circle": (0, 255, 0),
-    }
+    color = (255, 0, 255) # Pink
     out = img.copy()
     for (x, y, w, h, label, n) in detections:
-        color = color_map.get(label, (0, 255, 255))
-        cv2.rectangle(out, (x, y), (x + w, y + h), color, 2)
-        cv2.putText(out, label, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        cv2.rectangle(out, (x, y), (x + w, y + h), color, 10)
+        cv2.putText(out, label, (x, y + h + 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 2.0, color, 10)
     return out
 
 def save_crops(img, detections, image_path, output_dir="cropped"):
@@ -98,8 +95,15 @@ def save_crops(img, detections, image_path, output_dir="cropped"):
     saved_paths = []
     for idx, (x, y, w, h, shape_label, approxed) in enumerate(detections, start=1):
         H, W = img.shape[:2]
-        cx = x + w / 2 cy = y + h / 2 scale = 1.3 new_w = w * scale new_h = h * scale x1 = int(cx - new_w / 2) y1 = int(cy - new_h / 2)
-        x2 = int(cx + new_w / 2) y2 = int(cy + new_h / 2)
+        cx = x + w / 2
+        cy = y + h / 2
+        scale = 1.3
+        new_w = w * scale
+        new_h = h * scale
+        x1 = int(cx - new_w / 2)
+        y1 = int(cy - new_h / 2)
+        x2 = int(cx + new_w / 2)
+        y2 = int(cy + new_h / 2)
         x1, y1, x2, y2 = max(0, x1), max(0, y1), min(W, x2), min(H, y2)
 
         if x1 >= x2 or y1 >= y2: continue
@@ -156,7 +160,7 @@ if __name__ == '__main__':
     # --- Konfiguracja ---
     CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
     PARENT_DIR = os.path.dirname(CURRENT_DIR)
-    image_path = os.path.join(PARENT_DIR, "JPEGImages", "0000129.jpg")
+    image_path = os.path.join(PARENT_DIR, "JPEGImages", "0000186.jpg")
 
     # --- Wczytanie i przetwarzanie obrazu ---
     img = cv2.imread(image_path)
@@ -167,7 +171,7 @@ if __name__ == '__main__':
         prep_img = preprocess(img)
 
         print("2. Uruchamianie algorytmu 'Region Growing' (zalewanie)...")
-        h = prep_img.shape[:2]
+        h, w = prep_img.shape[:2]
         visited_mask = np.zeros((h + 2, w + 2), np.uint8)
         all_detections = []
 
@@ -200,7 +204,7 @@ if __name__ == '__main__':
         axes[0].axis('off')
 
         axes[1].imshow(final_mask, cmap='gray')
-        axes[1].set_title("Maska po 'Region Growing'")
+        axes[1].set_title("Maska rozrostu obszaru")
         axes[1].axis('off')
 
         axes[2].imshow(cv2.cvtColor(img_with_detections, cv2.COLOR_BGR2RGB))

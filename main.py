@@ -262,7 +262,7 @@ def calculate_and_plot_summary_metrics(cm: defaultdict):
 
 if __name__ == "__main__":
     #-------------------------------------------------------------------
-    image_name = "0000010.jpg"
+    image_name = "0007464.jpg"
     detected_signs = run_for_one(f"JPEGImages\{image_name}")
     for sign in detected_signs:
         print(sign)
@@ -271,7 +271,6 @@ if __name__ == "__main__":
     print(f"Kategorie na obrazie {image_name}:")
     for c in categories:
         print("-", c)
-
 
     #-------------------------------------------------------------------
 

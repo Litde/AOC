@@ -18,7 +18,7 @@ MIN_CIRCULARITY = 0.5
 MAX_CIRCULARITY = 1.2
 
 CANNY_LOW_TRESHOLD = 50
-CANNY_HIGH_TRESHOLD = 300
+CANNY_HIGH_TRESHOLD = 200
 
 def boost_saturation(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype(np.float32)
@@ -50,8 +50,9 @@ def save_crops(img, detections, image_path, output_dir="cropped"):
     saved_paths = []
     for idx, (x, y, w, h, shape_label, approxed) in enumerate(detections, start=1):
 
-        H = img.shape[:2]
-        cx = x + w / 2 cy = y + h / 2
+        H, W = img.shape[:2]
+        cx = x + w / 2
+        cy = y + h / 2
         scale = 1.3
         new_w = w * scale
         new_h = h * scale
@@ -95,9 +96,9 @@ def detect_triangles(img, edges):
             x, y, w, h = cv2.boundingRect(approx)
             detections.append((x, y, w, h, "triangle", len(approx)))
 
-            color = (0, 0, 255)
-            cv2.rectangle(output, (x, y), (x+w, y+h), color, 2)
-            cv2.putText(output, "triangle", (x, y-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+            color = (255, 0, 255) # Pink
+            cv2.rectangle(output, (x, y), (x+w, y+h), color, 4)
+            cv2.putText(output, "triangle", (x, y-5), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
 
 
     return output, detections
@@ -122,9 +123,9 @@ def detect_squares(img, edges):
 
             detections.append((x, y, w, h, "square", len(approx)))
 
-            color = (0, 255, 255)
-            cv2.rectangle(output, (x, y), (x+w, y+h), color, 2)
-            cv2.putText(output, "square", (x, y-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+            color = (255, 0, 255) # Pink
+            cv2.rectangle(output, (x, y), (x+w, y+h), color, 4)
+            cv2.putText(output, "square", (x, y-5), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
 
 
     return output, detections
@@ -149,36 +150,21 @@ def detect_circles(img, edges):
                 x, y, w, h = cv2.boundingRect(approx)
                 detections.append((x, y, w, h, "circle", len(approx)))
 
-                color = (255, 0, 0)
-                cv2.rectangle(output, (x, y), (x+w, y+h), color, 2)
-                cv2.putText(output, "circle", (x, y-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                color = (255, 0, 255) # Pink
+                cv2.rectangle(output, (x, y), (x+w, y+h), color, 4)
+                cv2.putText(output, "circle", (x, y-5), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
 
     return output, detections
 
 
 def draw_all_detections(img, detections):
-    output = img.copy()
-    shape_colors = {
-        "triangle": (0, 0, 255),
-        "square":   (255, 0, 0),
-        "circle":   (0, 255, 0)
-    }
-    for (x, y, w, h, shape_label, n_points) in detections:
-        color = shape_colors.get(shape_label, (0, 255, 0))
-
-        #bounding box
-        cv2.rectangle(output, (x, y), (x+w, y+h), color, 2)
-        cv2.putText(
-            output,
-            shape_label,
-            (x, y + h + 15),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            color,
-            2
-        )
-
-    return output
+    color = (255, 0, 255) # Pink
+    out = img.copy()
+    for (x, y, w, h, label, n) in detections:
+        cv2.rectangle(out, (x, y), (x + w, y + h), color, 10)
+        cv2.putText(out, label, (x, y + h + 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 2.0, color, 10)
+    return out
 
 def run_detector(image_path, printImages=True):
     img = cv2.imread(image_path)
@@ -210,7 +196,7 @@ if __name__ == '__main__':
     # --- Konfiguracja ---
     CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
     PARENT_DIR = os.path.dirname(CURRENT_DIR)
-    image_path = os.path.join(PARENT_DIR, "JPEGImages", "0000273.jpg")
+    image_path = os.path.join(PARENT_DIR, "JPEGImages", "0000697.jpg")
 
     # --- Wczytanie i przetwarzanie obrazu ---
     img = cv2.imread(image_path)
@@ -238,7 +224,7 @@ if __name__ == '__main__':
         axes[0].axis('off')
 
         axes[1].imshow(edges, cmap='gray')
-        axes[1].set_title("Krawędzie Canny")
+        axes[1].set_title("Krawędzie (metoda Canny'ego)")
         axes[1].axis('off')
 
         axes[2].imshow(cv2.cvtColor(img_with_detections, cv2.COLOR_BGR2RGB))

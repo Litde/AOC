@@ -7,14 +7,14 @@ SATURATION_VALUE = 2 #boost_saturation
 LEVEL_LOW = 5 #apply_levels
 LEVEL_HIGH = 95 #apply_levels
 
-MIN_AREA = 400 #contour filtering
+MIN_AREA = 500 #contour filtering
 ASPECT_RATIO_TOLERANCE = 0.5 #square
 MIN_CIRCULARITY = 0.7
 MAX_CIRCULARITY = 1.2
 
 # saliency
 SALIENCY_BLUR = 3
-SALIENCY_THRESH = 55
+SALIENCY_THRESH = 40
 
 
 def boost_saturation(img):
@@ -81,10 +81,12 @@ def get_saliency_mask(img):
     kernel = np.ones((3, 3), np.uint8)
 
     mask = cv2.erode(mask, kernel, iterations=1)
-    mask = cv2.dilate(mask, kernel, iterations=2)
+    mask = cv2.dilate(mask, kernel, iterations=1)
 
-    kernel = np.ones((1, 1), np.uint8)
-    mask = cv2.erode(mask, kernel, iterations=3)
+    kernel = np.ones((3, 3), np.uint8)
+
+    mask = cv2.erode(mask, kernel, iterations=4)
+    
 
     return mask, sal_map
 
@@ -137,20 +139,12 @@ def detect_shapes(img, mask):
 
 
 def draw_all_detections(img, detections):
-    color_map = {
-        "triangle": (0, 0, 255),
-        "square": (255, 0, 0),
-        "rectangle": (255, 128, 0),
-        "circle": (0, 255, 0),
-        "octagon": (128, 0, 128),
-
-    }
+    color = (255, 0, 255) # Pink
     out = img.copy()
     for (x, y, w, h, label, n) in detections:
-        color = color_map.get(label, (0, 255, 255))
-        cv2.rectangle(out, (x, y), (x + w, y + h), color, 2)
-        cv2.putText(out, label, (x, y - 5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        cv2.rectangle(out, (x, y), (x + w, y + h), color, 10)
+        cv2.putText(out, label, (x, y + h + 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 2.0, color, 10)
     return out
 
 def save_crops(img, detections, image_path, output_dir="cropped"):
@@ -163,7 +157,12 @@ def save_crops(img, detections, image_path, output_dir="cropped"):
         H, W = img.shape[:2]
 
         cx = x + w / 2
-        cy = y + h / 2 scale = 1.3 new_w = w * scale new_h = h * scale x1 = int(cx - new_w / 2) y1 = int(cy - new_h / 2)
+        cy = y + h / 2
+        scale = 1.3
+        new_w = w * scale
+        new_h = h * scale
+        x1 = int(cx - new_w / 2)
+        y1 = int(cy - new_h / 2)
         x2 = int(cx + new_w / 2)
         y2 = int(cy + new_h / 2)
 
@@ -221,6 +220,7 @@ if __name__ == '__main__':
     # Zakładamy, że skrypt jest w AOC/AOC/detectors, a obrazy w AOC/AOC/JPEGImages
     CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
     PARENT_DIR = os.path.dirname(CURRENT_DIR)
+    image_path = os.path.join(PARENT_DIR, "JPEGImages", "0000339.jpg")
 
     # --- Wczytanie i przetwarzanie obrazu ---
     img = cv2.imread(image_path)
@@ -260,16 +260,16 @@ if __name__ == '__main__':
         axes[0].set_title("Oryginalny obraz")
         axes[0].axis('off')
 
-        axes[1].imshow(cv2.cvtColor(segmented_areas_vis, cv2.COLOR_BGR2RGB))
-        axes[1].set_title("Posegmentowane obszary")
+        axes[1].imshow(sal_map, cmap='gray')
+        axes[1].set_title("Mapa istotności")
         axes[1].axis('off')
 
-        axes[2].imshow(mask, cmap='gray')
-        axes[2].set_title("Maska po operacjach morfologicznych")
+        axes[2].imshow(cv2.cvtColor(segmented_areas_vis, cv2.COLOR_BGR2RGB))
+        axes[2].set_title("Posegmentowane obszary")
         axes[2].axis('off')
 
         axes[3].imshow(cv2.cvtColor(img_with_detections, cv2.COLOR_BGR2RGB))
-        axes[3].set_title("Finalne detekcje (bounding boxy)")
+        axes[3].set_title("Finalne detekcje")
         axes[3].axis('off')
 
         plt.tight_layout(rect=[0, 0, 1, 0.95])

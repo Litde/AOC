@@ -13,7 +13,7 @@ GAUSSIAN_BLUR = 5
 #hough linie
 HOUGH_RHO = 1
 HOUGH_THETA = np.pi / 180
-HOUGH_THRESHOLD = 60
+HOUGH_THRESHOLD = 170
 HOUGH_MIN_LINE_LENGTH = 60
 HOUGH_MAX_LINE_GAP = 30
 
@@ -290,10 +290,10 @@ def detect_polygons_from_lines(img, edges):
 
     detections = cluster_polygons(all_detections, eps=HOUGH_CIRCLES_MIN_DIST / 2)
 
+    color = (0, 255, 0) 
     for (x, y, w, h, label, n_vertices) in detections:
-        color = (0, 0, 255) if label == "triangle" else (0, 255, 255)
-        cv2.rectangle(output, (x, y), (x + w, y + h), color, 2)
-        cv2.putText(output, label, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        cv2.rectangle(output, (x, y), (x + w, y + h), color, 4)
+        cv2.putText(output, label, (x, y + h + 25), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 3)
 
     return output, detections
 
@@ -340,6 +340,7 @@ def detect_circles_hough(img, blurred):
 
     clustered_circles = cluster_circles(all_circles, eps=HOUGH_CIRCLES_MIN_DIST)
 
+    color = (0, 255, 0)
     for (x_center, y_center, r) in clustered_circles:
         x = x_center - r
         y = y_center - r
@@ -349,44 +350,19 @@ def detect_circles_hough(img, blurred):
             continue
 
         detections.append((x, y, w, h, "circle", 0))
-        cv2.circle(output, (x_center, y_center), r, (255, 0, 0), 2)
-        cv2.rectangle(output, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        cv2.putText(output, "circle", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+        cv2.circle(output, (x_center, y_center), r, color, 4)
+        cv2.putText(output, "circle", (x, y + h + 25), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 3)
 
     return output, detections
 
 def draw_all_detections(img, detections):
-    output = img.copy()
-    shape_colors = {
-        "triangle": (0, 0, 255),
-        "square":   (255, 0, 0),
-        "circle":   (0, 255, 0)
-    }
-    for (x, y, w, h, shape_label, n_points) in detections:
-        color = shape_colors.get(shape_label, (0, 255, 0))
-
-        if shape_label == "circle":
-            center = (int(x + w / 2), int(y + h / 2))
-            radius = int(w / 2)
-            cv2.circle(output, center, radius, color, 2)
-        else:
-            #bounding box for polygons
-            cv2.rectangle(output, (x, y), (x + w, y + h), color, 2)
-        # bounding box for polygons
-        cv2.rectangle(output, (x, y), (x + w, y + h), color, 2)
-
-        # label under bbox
-        cv2.putText(
-            output,
-            f"{shape_label}",
-            (x, y + h + 18),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            color,
-            2
-        )
-
-    return output
+    color = (255, 0, 255) # Pink
+    out = img.copy()
+    for (x, y, w, h, label, n) in detections:
+        cv2.rectangle(out, (x, y), (x + w, y + h), color, 10)
+        cv2.putText(out, label, (x, y + h + 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 2.0, color, 10)
+    return out
 
 
 def run_detector(image_path, printImages=True):
@@ -419,8 +395,7 @@ def run_detector(image_path, printImages=True):
 if __name__ == '__main__':
     CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
     PARENT_DIR = os.path.dirname(CURRENT_DIR)
-    image_path = os.path.join(PARENT_DIR, "JPEGImages", "0005911.jpg")
-
+    image_path = os.path.join(PARENT_DIR, "JPEGImages", "0003901.jpg")
     img = cv2.imread(image_path)
     if img is None:
         print(f"Błąd: Nie można wczytać obrazu ze ścieżki: {image_path}")
@@ -441,30 +416,52 @@ if __name__ == '__main__':
         _, poly_det = detect_polygons_from_lines(img, edges)
 
         print("3. Wykrywanie okręgów...")
-        _, circ_det = detect_circles_hough(img, blurred)
+        img_with_circles, circ_det = detect_circles_hough(img, blurred)
 
         print("4. Rysowanie wszystkich detekcji...")
         all_detections = poly_det + circ_det
         img_with_detections = draw_all_detections(img, all_detections)
 
-        fig, axes = plt.subplots(1, 4, figsize=(24, 6))
-        fig.suptitle("Wizualizacja kroków detekcji (byHough)", fontsize=16)
+        # --- Okno 1: Ścieżka detekcji linii ---
+        fig1, axes1 = plt.subplots(1, 4, figsize=(24, 6))
+        fig1.suptitle("Wizualizacja detekcji linii (byHough)", fontsize=16)
 
-        axes[0].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        axes[0].set_title("Oryginalny obraz")
-        axes[0].axis('off')
+        axes1[0].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        axes1[0].set_title("Oryginalny obraz")
+        axes1[0].axis('off')
 
-        axes[1].imshow(edges, cmap='gray')
-        axes[1].set_title("Krawędzie Canny")
-        axes[1].axis('off')
+        axes1[1].imshow(edges, cmap='gray')
+        axes1[1].set_title("Krawędzie")
+        axes1[1].axis('off')
 
-        axes[2].imshow(cv2.cvtColor(img_with_lines, cv2.COLOR_BGR2RGB))
-        axes[2].set_title("Wykryte linie Hougha")
-        axes[2].axis('off')
+        axes1[2].imshow(cv2.cvtColor(img_with_lines, cv2.COLOR_BGR2RGB))
+        axes1[2].set_title("Wykryte linie")
+        axes1[2].axis('off')
 
-        axes[3].imshow(cv2.cvtColor(img_with_detections, cv2.COLOR_BGR2RGB))
-        axes[3].set_title("Finalne detekcje")
-        axes[3].axis('off')
+        axes1[3].imshow(cv2.cvtColor(img_with_detections, cv2.COLOR_BGR2RGB))
+        axes1[3].set_title("Finalne detekcje")
+        axes1[3].axis('off')
+        fig1.tight_layout(rect=[0, 0, 1, 0.95])
 
-        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        # --- Okno 2: Ścieżka detekcji okręgów ---
+        fig2, axes2 = plt.subplots(1, 4, figsize=(24, 6))
+        fig2.suptitle("Wizualizacja detekcji okręgów (byHough)", fontsize=16)
+
+        axes2[0].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        axes2[0].set_title("Oryginalny obraz")
+        axes2[0].axis('off')
+
+        axes2[1].imshow(edges, cmap='gray')
+        axes2[1].set_title("Krawędzie")
+        axes2[1].axis('off')
+
+        axes2[2].imshow(cv2.cvtColor(img_with_circles, cv2.COLOR_BGR2RGB))
+        axes2[2].set_title("Wykryte okręgi")
+        axes2[2].axis('off')
+
+        axes2[3].imshow(cv2.cvtColor(img_with_detections, cv2.COLOR_BGR2RGB))
+        axes2[3].set_title("Finalne detekcje")
+        axes2[3].axis('off')
+        fig2.tight_layout(rect=[0, 0, 1, 0.95])
+
         plt.show()
