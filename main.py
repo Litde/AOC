@@ -30,7 +30,7 @@ def train_svm(target_class='rectangle'):
     model.save_model(f'models/binary_{target_class}_model.joblib')
 
 def train_rf(target_class='rectangle'):
-    model = ClassificationRandomForest(data_dir=f'input/{target_class}', img_size=(64, 64), n_estimators=100, max_depth=None, random_state=42)
+    model = ClassificationRandomForest(data_dir=f'enhanced_input/{target_class}', img_size=(64, 64), n_estimators=100, max_depth=None, random_state=42)
     model.load_data()
     print("Training Random Forest model...")
     metrics = model.train_model()
@@ -154,7 +154,7 @@ def calculate_and_plot_summary_metrics(cm: defaultdict):
 
 if __name__ == "__main__":
     # train_rf()
-    train_svm(target_class='circle')
+    train_svm(target_class='rectangle')
     # test_svm()
     # train_rf()
     # test_rf()
